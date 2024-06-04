@@ -1,0 +1,248 @@
+%% 2D Obstacle Avoidance QP
+clear all 
+clc
+import casadi.*
+MPC_opti = casadi.Opti(); % Create 
+
+% System Parameters
+Tstep = 0.3; % step time is 0.5, fixed for now
+dt = 0.1; % MPC sample Time, 
+Npred = 4; % Number of steps
+z0 = .9; % walking height
+g = 9.81; % gravity term;
+Nodes = Npred * round(Tstep / dt) + 1;
+
+% Define Dynamics Matrix
+A = [0 1;g/z0 0];
+B = [0;-g/z0];
+nx = size(A,2);
+nu = size(B,2);
+
+% Define Variables
+x = MPC_opti.variable(nx * Nodes);
+ux = MPC_opti.variable(Nodes);
+dPx = MPC_opti.variable(Npred);
+
+y = MPC_opti.variable(nx * Nodes);
+uy = MPC_opti.variable(Nodes);
+dPy = MPC_opti.variable(Npred);
+
+s = MPC_opti.variable(Nodes);
+s2 = MPC_opti.variable(Nodes);
+
+% Define Parameters
+q_init = MPC_opti.parameter(nx * 2);
+qo_ic = MPC_opti.parameter(2);
+qo_tan = MPC_opti.parameter(2);     % norm vector of the obstacle point
+q_ref = MPC_opti.parameter(nx * 2);
+f_length = MPC_opti.parameter(2); % Foot Length
+f_init = MPC_opti.parameter(2); % Initial Foot Position
+f_param = MPC_opti.parameter(6); % MPC Foot Related Parameters
+Weights = MPC_opti.parameter(9);
+r = MPC_opti.parameter(2);       % Obstacle Radius
+
+% Define Dynamics Constraint
+for n = 1:Nodes
+    ux_n = ux(nu*(n-1)+1:nu*n);
+    x_n = x(nx*(n-1)+1:nx*n);
+    uy_n = uy(nu*(n-1)+1:nu*n);
+    y_n = y(nx*(n-1)+1:nx*n);
+    if n == 1
+        MPC_opti.subject_to(q_init(1:2,1) - x(1:nx,1) == 0); % Initial states
+        MPC_opti.subject_to(q_init(3:4,1) - y(1:nx,1) == 0); % Initial states
+    else
+        x_n1 = x(nx*(n-2)+1:nx*(n-1));
+        y_n1 = y(nx*(n-2)+1:nx*(n-1));
+        MPC_opti.subject_to(x_n == x_n1 + dt * (A*x_n1 + B*ux_n));
+        MPC_opti.subject_to(y_n == y_n1 + dt * (A*y_n1 + B*uy_n));
+    end
+end
+
+% Define Reachability Constraint
+MPC_opti.subject_to(-f_length(1) <= x(1:2:end) - ux);
+MPC_opti.subject_to(-f_length(2) <= y(1:2:end) - uy);
+MPC_opti.subject_to(x(1:2:end) - ux <= f_length(1));
+MPC_opti.subject_to(y(1:2:end) - uy <= f_length(2));
+
+% Define Avoidance Constraint
+for n = 1:Nodes
+    % TODO: make qo_ic a trajectory
+    qn = [x(nx*(n-1)+1);y(nx*(n-1)+1)];
+    % inner constraint
+    inter = qo_ic + r(1) * qo_tan;
+    % outer constraint
+    outer = qo_ic + r(2) * qo_tan;
+    MPC_opti.subject_to(-dot(qn - outer,qo_tan) - s(n) <= 0);
+    MPC_opti.subject_to(-dot(qn - inter,qo_tan) <= 0);
+    MPC_opti.subject_to(s(n) >= 0);
+end
+
+% Define Tracking Cost
+cost = 0;
+Qx = [Weights(1) 0;0 Weights(2)];
+Qy = [Weights(3) 0;0 Weights(4)];
+for n = 1:Nodes
+    x_e = x(nx*(n-1)+1:nx*n) - q_ref(1:2,1);
+    y_e = y(nx*(n-1)+1:nx*n) - q_ref(3:4,1);
+    cost = cost + x_e.' * Qx * x_e + y_e.' * Qy * y_e;
+end
+
+% Define Foot Placement Tracking Cost and Constraint, Start with a simple
+% case
+step_index = 0;
+L = tril(ones(Npred)) - eye(Npred);
+temp = [kron(L,ones(round(Tstep/dt),1));ones(1,Npred)];
+temp = [temp(1 + step_index:end,:);ones(step_index,Npred)];
+
+Ux_ref = ones(Nodes,1) * f_init(1) + temp * dPx;
+Uy_ref = ones(Nodes,1) * f_init(2) + temp * dPy;
+
+for n = 1:Nodes
+    ux_e = Ux_ref(n) - ux(n);
+    uy_e = Uy_ref(n) - uy(n);
+    cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
+end
+
+% Define Foot Change Cost
+dix = f_param(3);
+diy = f_param(6);
+
+y_pos = y(1:2:end);
+for n = 1:Npred
+    dP_ex = dPx(n) - dix;
+    if n < Npred
+        start_ind = n*round(Tstep/dt) + 1-step_index;
+        end_ind = (n+1)*round(Tstep/dt)-step_index;
+    else
+        start_ind = n*round(Tstep/dt) + 1-step_index;
+        end_ind = Nodes;
+    end
+    FB_dis = Uy_ref(start_ind:end_ind,1) - y_pos(start_ind:end_ind,1);
+    s2_n = s2(start_ind:end_ind,1);
+    MPC_opti.subject_to( (-1)^(n + 1) * (FB_dis - s2_n) + diy <= 0);
+    cost = cost + dP_ex * Weights(7) * dP_ex;
+end
+
+for n = 1:Nodes
+    cost = cost + s2(n) * Weights(8) * s2(n);
+end
+
+% Obstacle Slack Cost
+for n = 1:Nodes
+    cost = cost + s(n) * Weights(9) * s(n);
+end
+
+MPC_opti.minimize(cost);
+% Set QP Options
+MPC_opts  = struct('qpsol','qrqp','print_iteration',true,'print_header',false,'print_time',true);
+%MPC_opts .qpsol_options = struct('print_iter',false,'print_header',false,'print_info',true);
+MPC_opti.solver('sqpmethod',MPC_opts); % Avaiable Solvers are qpoases and qrqp
+
+
+
+foot_int = [0;0.07];
+% Set QP Parameters
+MPC_opti.set_value(q_init,[0;0.0;0;0.0]);
+MPC_opti.set_value(q_ref,[0;0.6;0;0.0]);
+MPC_opti.set_value(f_length,[.8;.4]);
+MPC_opti.set_value(f_init,foot_int);
+MPC_opti.set_value(f_param,[0;0;.6 * .4;0;0;0.14]);
+MPC_opti.set_value(Weights,[0;2500;0;2500;10000;10000;100;6000;150]);
+MPC_opti.set_value(r,[0.3;0.4]);
+obs = [1.4;0.1];
+obs_tan = [0.0;0.0] - obs;
+obs_tan = obs_tan / norm(obs_tan);
+MPC_opti.set_value(qo_ic,obs);
+MPC_opti.set_value(qo_tan,obs_tan);
+
+sol = MPC_opti.solve();
+sol.value(s)
+traj_x = sol.value(x);
+traj_y = sol.value(y);
+traj_foot_x = sol.value(dPx);
+traj_foot_y = sol.value(dPy);
+
+actual_foot_x = [foot_int(1);foot_int(1) + cumsum(traj_foot_x)];
+actual_foot_y = [foot_int(2);foot_int(2) + cumsum(traj_foot_y)];
+
+angle = 0:0.1:2*pi;
+xoff = sin(angle);
+yoff = cos(angle);
+
+close all
+figure
+plot(traj_x(1:2:end),traj_y(1:2:end))
+hold on
+plot(obs(1) + xoff *.3,obs(2) + yoff *.3)
+plot(obs(1) + xoff *.4,obs(2) + yoff *.4)
+
+plot(actual_foot_x(1),actual_foot_y(1),'o','MarkerSize',5,    'MarkerEdgeColor','b',...
+    'MarkerFaceColor','r')
+plot(actual_foot_x(2),actual_foot_y(2),'o','MarkerSize',10,    'MarkerEdgeColor','b',...
+    'MarkerFaceColor','g')
+plot(actual_foot_x(3),actual_foot_y(3),'o','MarkerSize',15,    'MarkerEdgeColor','b',...
+    'MarkerFaceColor','r')
+plot(actual_foot_x(4),actual_foot_y(4),'o','MarkerSize',20,    'MarkerEdgeColor','b',...
+    'MarkerFaceColor','g')
+%plot(foot_traj(1,3),foot_traj(2,3),'o','MarkerSize',10)
+%plot(foot_traj(1,4),foot_traj(2,4),'o','MarkerSize',10)
+
+% figure
+% plot(traj_x(2:2:end))
+% figure
+% plot(traj_y(2:2:end))
+
+%% Code Generation
+import casadi.*
+disp('generating casadi function')
+
+tic
+f_MPC_opti = MPC_opti.to_function('Avoidance_MPC_2D',{x,ux,dPx,y,uy,dPy,s,s2,q_init,q_ref,f_length,f_init,f_param,...
+    Weights,r,qo_ic},{x,ux,dPx,y,uy,dPy,s,s2});
+toc
+
+cg_options = struct('mex', true,'cpp',true,'main',true,'with_header',true);
+cg = CodeGenerator('Avoidance_MPC_2D',cg_options);
+cg.add(f_MPC_opti);
+
+disp('generating c file')
+tic
+cg.generate() 
+toc
+%% 
+
+% disp('generating mex file')
+% tic
+% mex Avoidance_MPC_2D.cpp -DMATLAB_MEX_FILE
+% toc
+
+% q_init = [0;0.0;0;0.0];
+% q_ref = [0;0.6;0;0.0];
+% f_length = [.8;.4];
+% f_init = [0;0.07];
+% f_param = [0;0;.6 * .4;0;0;0.14];
+% Weights = [0;2500;0;2500;10000;10000;100;6000;15000];
+% r = [0.2;0.4];
+% qo_ic = [0.3;0.1];
+% 
+% traj_x = zeros(2*Nodes,1);
+% ux = zeros(Nodes,1);
+% dPx = zeros(Npred,1);
+% traj_y = zeros(2*Nodes,1);
+% uy = zeros(Nodes,1);
+% dPy = zeros(Npred,1);
+% s = zeros(Nodes,1);
+% tic
+% [traj_x,ux,dPx,traj_y,uy,dPy,s] = Avoidance_MPC_2D(traj_x,ux,dPx,traj_y,uy,dPy,s,q_init,q_ref,f_length,f_init,f_param,...
+%     Weights,r,qo_ic);
+% toc
+% tic
+% [traj_x,ux,dPx,traj_y,uy,dPy,s] = Avoidance_MPC_2D(traj_x,ux,dPx,traj_y,uy,dPy,s,q_init,q_ref,f_length,f_init,f_param,...
+%     Weights,r,qo_ic);
+% toc
+
+% figure
+% plot(traj_x(1:2:end),traj_y(1:2:end))
+% hold on
+% plot(qo_ic(1) + xoff *.2,qo_ic(2) + yoff *.2)
+% plot(qo_ic(1) + xoff *.4,qo_ic(2) + yoff *.4)
