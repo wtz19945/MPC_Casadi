@@ -10,28 +10,28 @@ g = 9.81; % gravity term;
 Nodes = Npred * round(Tstep / dt) + 1;
 
 q_init = [0;0.0;0;-0.06]; % intial robot state
-dx_des = 0.3;
+dx_des = 0.0;
 w = sqrt(9.81 / 0.9);
 x0_ref = dx_des / w * (2 - exp(w * Tstep) - exp(-w * Tstep)) / (exp(w * Tstep) - exp(-w * Tstep));
 dy_des = sqrt(w) * 0.11 * tanh(sqrt(w) * Tstep/2);
 dy_off = 0.0;
 x_ref = dx_des * ones(5,1);
-y_ref = [0;dy_off + dy_des * (-1).^(2:5).'];
+y_ref = [0;dy_off + dy_des * (-1).^(1:4).'];
 
-f_length = [.8;.4];     % foot length limit
-f_init = [0;-0.11];      % foot initial state
+f_length = [.8;.36];     % foot length limit
+f_init = [0;0.11];      % foot initial state
 f_param = [0;0;x0_ref;0;0;0.11]; % foot parameters
-Weights = [0;5000;0;5000;10000;10000;500;500;5000]; % MPC weights
-r = [0.2;0.4];          % obstacle radius
-qo_ic = [.4;0.1];      % obstacle position
+Weights = [0;5000;0;5000;10000;10000;500;500;45000]; % MPC weights
+r = [0.2;0.6];          % obstacle radius
+qo_ic = [.1;0.4];      % obstacle position
 qo_tan = [q_init(1);q_init(3)] - qo_ic; % obstacle tangent vector
 qo_tan = qo_tan/norm(qo_tan);
 du_ref = [0;0;0;.5];
 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref];
 
-[a,b,c,d,e,f] = RightStart_Step0V3(Input,0*rand(127,1));
+[a,b,c,d,e,f] = LeftStart_Step0V3(Input,0*rand(127,1));
 
-[a1,b1,c1,d1,e1,f1] = RightStart_Step0V3(Input,2.5*rand(127,1));
+[a1,b1,c1,d1,e1,f1] = LeftStart_Step0V3(Input,2.5*rand(127,1));
 
 ea = norm(full(a1) - full(a))
 eb = norm(full(b1) - full(b))
@@ -65,18 +65,26 @@ yoff = cos(angle);
 actual_foot_x = [f_init(1);f_init(1) + cumsum(dPx)];
 actual_foot_y = [f_init(2);f_init(2) + cumsum(dPy)];
 
+traj_y(1:2:10) - actual_foot_y(1)
+traj_y(1:2:10) - actual_foot_y(2)
+
 close all
 figure
 plot(traj_x(1:2:end),traj_y(1:2:end))
 hold on
-plot(qo_ic(1) + xoff *.2,qo_ic(2) + yoff *.2)
-plot(qo_ic(1) + xoff *.4,qo_ic(2) + yoff *.4)
+plot(qo_ic(1) + xoff *r(1),qo_ic(2) + yoff *r(1))
+plot(qo_ic(1) + xoff *r(2),qo_ic(2) + yoff *r(2))
 
 plot(actual_foot_x(1),actual_foot_y(1),'o','MarkerSize',5,    'MarkerEdgeColor','b',...
     'MarkerFaceColor','r')
 plot(actual_foot_x(2),actual_foot_y(2),'o','MarkerSize',10,    'MarkerEdgeColor','b',...
     'MarkerFaceColor','g')
 plot(actual_foot_x(3),actual_foot_y(3),'o','MarkerSize',15,    'MarkerEdgeColor','b',...
-    'MarkerFaceColor','r')
+    'MarkerFaceColor','b')
 plot(actual_foot_x(4),actual_foot_y(4),'o','MarkerSize',20,    'MarkerEdgeColor','b',...
-    'MarkerFaceColor','g')
+    'MarkerFaceColor','m')
+
+xlim([-2 2])
+ylim([-2 2])
+legend('com','obs1','obs2','s1','s2','s3','s4')
+

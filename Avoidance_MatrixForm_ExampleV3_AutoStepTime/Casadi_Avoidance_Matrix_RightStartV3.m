@@ -76,6 +76,16 @@ ieq_con = [];
 ieq_con = [ieq_con;-f_length(1) - x(1:2:end) + ux;x(1:2:end) - ux - f_length(1)];
 ieq_con = [ieq_con;-f_length(2) - y(1:2:end) + uy;y(1:2:end) - uy - f_length(2)];
 
+% Explicitly limit st foot to CoM and sw foot to CoM for the current step
+step1_end = round(Tstep / dt)+1 - step_index;
+ieq_con = [ieq_con;-f_length(1) - x(1:2:2*step1_end) + f_init(1);x(1:2:2*step1_end) - f_init(1) - f_length(1)];
+ieq_con = [ieq_con;-f_length(2) - y(1:2:2*step1_end) + f_init(2);y(1:2:2*step1_end) - f_init(2) - f_length(2)];
+
+ieq_con = [ieq_con;-f_length(1) - x(1:2:2*step1_end) + f_init(1) + dPx(1);...
+    x(1:2:2*step1_end) - f_init(1) - dPx(1) - f_length(1)];
+ieq_con = [ieq_con;-f_length(2) - y(1:2:2*step1_end) + f_init(2) + dPy(1);...
+    y(1:2:2*step1_end) - f_init(2) - dPy(1) - f_length(2)];
+
 % Define Avoidance Constraint
 for n = 1:Nodes
     % TODO: make qo_ic a trajectory
@@ -97,11 +107,15 @@ Qy = [Weights(3) 0;0 Weights(4)];
 x_c = (x_ref(1) - x(1:2:end)).' * Qx(1,1) * (x_ref(1) - x(1:2:end));
 y_c = (y_ref(1) - y(1:2:end)).' * Qy(1,1) * (y_ref(1) - y(1:2:end));
 cost = cost + x_c + y_c;
+
 % Define velocity tracking for stepping phase
 x_vel = x(2:2:end);
 y_vel = y(2:2:end);
 dx_e = x_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - x_ref(2:5);
 dy_e = y_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - y_ref(2:5);
+if step_index < 3
+    dx_e = [dx_e; x_vel(2) - x_ref(2)];
+end
 cost = cost + dx_e.' * Qx(2,2) * dx_e + dy_e.' * Qy(2,2) * dy_e;
 
 % Define Foot Placement Tracking Cost and Constraint

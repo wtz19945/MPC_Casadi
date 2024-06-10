@@ -93,15 +93,22 @@ end
 cost = 0;
 Qx = [Weights(1) 0;0 Weights(2)];
 Qy = [Weights(3) 0;0 Weights(4)];
-% Define position tracking for standing phase
+
+% Define position tracking during standing phase
 x_c = (x_ref(1) - x(1:2:end)).' * Qx(1,1) * (x_ref(1) - x(1:2:end));
 y_c = (y_ref(1) - y(1:2:end)).' * Qy(1,1) * (y_ref(1) - y(1:2:end));
 cost = cost + x_c + y_c;
+
 % Define velocity tracking for stepping phase
 x_vel = x(2:2:end);
 y_vel = y(2:2:end);
 dx_e = x_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - x_ref(2:5);
 dy_e = y_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - y_ref(2:5);
+
+% Penalize initial velocity as well
+if step_index < 3
+    dx_e = [dx_e; x_vel(2) - x_ref(2)];
+end
 cost = cost + dx_e.' * Qx(2,2) * dx_e + dy_e.' * Qy(2,2) * dy_e;
 
 % Define Foot Placement Tracking Cost and Constraint
