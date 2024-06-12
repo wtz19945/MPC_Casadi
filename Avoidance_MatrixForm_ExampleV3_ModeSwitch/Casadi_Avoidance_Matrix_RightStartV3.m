@@ -21,9 +21,11 @@ dPx = MX.sym('dPx',Npred); % x foot change
 y = MX.sym('y',nx * Nodes); % y com traj
 uy = MX.sym('uy',Nodes);   % y center of pressure traj
 dPy = MX.sym('dPy',Npred); % y foot change
-s = MX.sym('s',Nodes);     % slack variable
+s = MX.sym('s',Nodes);     % slack variable for avoidance
+s_fx = MX.sym('sfx',round(Tstep / dt)); % slack variable for support polygon x 
+s_fy = MX.sym('sfy',round(Tstep / dt)); % slack variable for support polygon y
 
-Variable = [x;ux;dPx;y;uy;dPy;s];
+Variable = [x;ux;dPx;y;uy;dPy;s;s_fx;s_fy];
 
 % Define Parameters
 q_init = MX.sym('q_init',nx * 2); % com current position
@@ -76,6 +78,16 @@ ieq_con = [];
 ieq_con = [ieq_con;-f_length(1) - x(1:2:end) + ux;x(1:2:end) - ux - f_length(1)];
 ieq_con = [ieq_con;-f_length(2) - y(1:2:end) + uy;y(1:2:end) - uy - f_length(2)];
 
+% Explicitly limit st foot to CoM and sw foot to CoM for the current step
+step1_end = round(Tstep / dt) + 1 - step_index;
+ieq_con = [ieq_con;-f_length(1) - x(1:2:2*step1_end) + f_init(1);x(1:2:2*step1_end) - f_init(1) - f_length(1)];
+ieq_con = [ieq_con;-f_length(2) - y(1:2:2*step1_end) + f_init(2);y(1:2:2*step1_end) - f_init(2) - f_length(2)];
+
+ieq_con = [ieq_con;-f_length(1) - x(1:2:2*step1_end) + f_init(1) + dPx(1);...
+    x(1:2:2*step1_end) - f_init(1) - dPx(1) - f_length(1)];
+ieq_con = [ieq_con;-f_length(2) - y(1:2:2*step1_end) + f_init(2) + dPy(1);...
+    y(1:2:2*step1_end) - f_init(2) - dPy(1) - f_length(2)];
+
 % Define Avoidance Constraint
 for n = 1:Nodes
     % TODO: make qo_ic a trajectory
@@ -97,11 +109,18 @@ Qy = [Weights(3) 0;0 Weights(4)];
 x_c = (x_ref(1) - x(1:2:end)).' * Qx(1,1) * (x_ref(1) - x(1:2:end));
 y_c = (y_ref(1) - y(1:2:end)).' * Qy(1,1) * (y_ref(1) - y(1:2:end));
 cost = cost + x_c + y_c;
+
 % Define velocity tracking for stepping phase
 x_vel = x(2:2:end);
 y_vel = y(2:2:end);
 dx_e = x_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - x_ref(2:5);
 dy_e = y_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - y_ref(2:5);
+if step_index < 3
+    dx_e = [dx_e; x_vel(2) - x_ref(2)];
+    dy_e = [dy_e; y_vel(2) - y_ref(2)];
+end
+dx_e = [dx_e; x_vel(end) - x_ref(2)];
+dy_e = [dy_e; y_vel(end) - y_ref(2)];
 cost = cost + dx_e.' * Qx(2,2) * dx_e + dy_e.' * Qy(2,2) * dy_e;
 
 % Define Foot Placement Tracking Cost and Constraint
@@ -113,10 +132,26 @@ temp = [temp(1 + step_index:end,:);ones(step_index,Npred)];
 Ux_ref = ones(Nodes,1) * f_init(1) + temp * dPx;
 Uy_ref = ones(Nodes,1) * f_init(2) + temp * dPy;
 
+fx_bd = f_param(1); % support polygon x boundary
+fy_bd = f_param(4); % support polygon y boundary
+
 for n = 1:Nodes
-    ux_e = Ux_ref(n) - ux(n);
-    uy_e = Uy_ref(n) - uy(n);
-    cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
+    if n < round(Tstep / dt) + 1 - step_index
+        % Slack variables used for the first step
+        s_fxn = s_fx(n);
+        s_fyn = s_fy(n);
+        ux_e = Ux_ref(n) - ux(n);
+        uy_e = Uy_ref(n) - uy(n);
+
+        ieq_con = [ieq_con;ux_e - s_fxn - fx_bd;-ux_e - s_fxn - fx_bd];
+        ieq_con = [ieq_con;uy_e - s_fyn - fy_bd;-uy_e - s_fyn - fy_bd];
+        cost = cost + s_fxn * Weights(5) * s_fxn + s_fyn * Weights(6) * s_fyn;
+    else
+        % Normal tracking for the rest of the steps
+        ux_e = Ux_ref(n) - ux(n);
+        uy_e = Uy_ref(n) - uy(n);
+        cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
+    end
 end
 
 % Define Foot Change Cost
@@ -140,7 +175,7 @@ for n = 1:Nodes
     cost = cost + s(n) * Weights(9) * s(n);
 end
 
-% Foot Change Cost
+% Foot Change Speed Cost
 cost = cost + (other(1:2) - [dPx(1);dPy(1)]).' * other(3) * (other(1:2) - [dPx(1);dPy(1)]);
 
 % Get the jacobian and Hessian Information

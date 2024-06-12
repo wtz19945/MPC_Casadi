@@ -16,22 +16,22 @@ x0_ref = dx_des / w * (2 - exp(w * Tstep) - exp(-w * Tstep)) / (exp(w * Tstep) -
 dy_des = sqrt(w) * 0.11 * tanh(sqrt(w) * Tstep/2);
 dy_off = 0.0;
 x_ref = dx_des * ones(5,1);
-y_ref = [0;dy_off + dy_des * (-1).^(1:4).'];
+y_ref = [0;dy_off + dy_des * (-1).^(2:5).'];
 
-f_length = [.8;.36];     % foot length limit
-f_init = [0;0.11];      % foot initial state
+f_length = [.8;.4];     % foot length limit
+f_init = [0;-0.11];      % foot initial state
 f_param = [0;0;x0_ref;0;0;0.11]; % foot parameters
-Weights = [0;5000;0;5000;10000;10000;500;500;45000]; % MPC weights
-r = [0.2;0.6];          % obstacle radius
+Weights = [0;2000;0;2000;10000;10000;500;500;15000]; % MPC weights
+r = [0.2;0.8];          % obstacle radius
 qo_ic = [.1;0.4];      % obstacle position
 qo_tan = [q_init(1);q_init(3)] - qo_ic; % obstacle tangent vector
-qo_tan = qo_tan/norm(qo_tan);
-du_ref = [0;0;0;.5];
+qo_tan = qo_tan/norm(qo_tan); % normalized obstacle tangent vector
+du_ref = [0;0;0;.9];          % 1,2: foot change from last step, 3: weight, 4: walking height
 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref];
 
-[a,b,c,d,e,f] = LeftStart_Step0V3(Input,0*rand(127,1));
+[a,b,c,d,e,f] = RightStart_Step1V3(Input,0*rand(127,1));
 
-[a1,b1,c1,d1,e1,f1] = LeftStart_Step0V3(Input,2.5*rand(127,1));
+[a1,b1,c1,d1,e1,f1] = RightStart_Step1V3(Input,2.5*rand(127,1));
 
 ea = norm(full(a1) - full(a))
 eb = norm(full(b1) - full(b))
