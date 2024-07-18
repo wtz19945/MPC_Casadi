@@ -108,10 +108,10 @@ dy_e = y_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - y_ref(2:5
 % Penalize initial velocity as well
 if step_index < 3
     dx_e = [dx_e; x_vel(2) - x_ref(2)];
-    dy_e = [dy_e; y_vel(2) - y_ref(2)];
+    % dy_e = [dy_e; y_vel(2) - y_ref(2)];
 end
 dx_e = [dx_e; x_vel(end) - x_ref(2)];
-dy_e = [dy_e; y_vel(end) - y_ref(2)];
+% dy_e = [dy_e; y_vel(end) - y_ref(2)];
 
 cost = cost + dx_e.' * Qx(2,2) * dx_e + dy_e.' * Qy(2,2) * dy_e;
 
