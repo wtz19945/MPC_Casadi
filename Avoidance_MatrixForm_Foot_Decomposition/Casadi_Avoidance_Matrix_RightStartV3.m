@@ -43,7 +43,7 @@ height = MX.sym('height', 1);     % Walking height
 swf_cq = MX.sym('swf_cq', 3);     % Current swing foot state, x
 swf_rq = MX.sym('swf_rq', (round(Tstep / dt) + 1) * 3);      % Reference swing foot state
 swf_Q = MX.sym('swf_Q', 3);       % Swing foot position tracking
-swf_obs = MX.sym('swf_obs', 10);    % Obstacle x,y,z, radius, weights, z fraction
+swf_obs = MX.sym('swf_obs', 12);    % Obstacle x,y,z, radius, weights, z fraction
 
 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;rt;foff;height...
     ;swf_cq;swf_rq;swf_Q;swf_obs];
@@ -130,11 +130,13 @@ temp = [temp(1 + step_index:end,:);ones(step_index,Npred)];
 Ux_ref = ones(Nodes,1) * f_init(1) + temp * dPx;
 Uy_ref = ones(Nodes,1) * f_init(2) + temp * dPy;
 
-for n = 1:Nodes
-    ux_e = Ux_ref(n) - ux(n);
-    uy_e = Uy_ref(n) - uy(n);
-    cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
-end
+% for n = 1:Nodes
+%     ux_e = Ux_ref(n) - ux(n);
+%     uy_e = Uy_ref(n) - uy(n);
+%     cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
+% end
+eq_con = [eq_con;Ux_ref(:) - ux(:);Uy_ref(:) - uy(:)];
+ieq_con = [ieq_con;(-1).^(1:Npred)' .* dPy + 0.05];
 
 % Define Foot Change Cost
 dix = f_param(3); % foot change ref in x direction
@@ -199,6 +201,8 @@ swf_obs_r4 = swf_obs(7);
 swf_obs_Qxy = swf_obs(8);
 swf_obs_Qz = swf_obs(9);
 frac_z = swf_obs(10);
+min_z = swf_obs(11);
+max_z = swf_obs(12);
 
 for n = step_index + 1 : round(Tstep / dt) + 1
     % swing foot traj variable
@@ -230,8 +234,11 @@ ieq_con = [ieq_con;-swf_s];
 
 % symmetrical vertical trajectory
 eq_con = [eq_con;swf_z(2) - swf_z(4)];
-eq_con = [eq_con;swf_z(2) - frac_z * swf_z(3)];
-ieq_con = [ieq_con;swf_z(3) - 0.4];
+ieq_con = [ieq_con;swf_z(2) - frac_z * swf_z(3)];
+ieq_con = [ieq_con;swf_z(3) - max_z];
+if step_index < 2
+    ieq_con = [ieq_con;-swf_z(3) + min_z];
+end
 
 % Get the jacobian and Hessian Information
 Aeq = jacobian(eq_con,Variable);

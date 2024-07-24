@@ -35,7 +35,7 @@ z_goal = [0.0;0.1;0.2;0.1;0.0];
 swf_cq = [0;0.11;0.0];
 swf_rq = [linspace(0, x_goal, 5)'; linspace(0.11, y_goal, 5)'; z_goal];
 swf_Q = 100*[100;100;10];
-swf_obs = [-1.15;0.1;0;0.1;0.3;0;0.5];
+swf_obs = [1.35;0.1;0.0;0.1;0.15;0.0;0.25;100000;100000;0.5;0.1;0.6];
 
 dN = round(Tstep / dt) + 1;
 % Reference Foot Trajectory
@@ -43,11 +43,6 @@ swf_rx = swf_rq(1:dN);
 swf_ry = swf_rq(dN + 1:2*dN);
 swf_rz = swf_rq(2*dN+1:end);
 
-
-swf_obs(1:3)
-ref_p = [swf_rx(5);swf_ry(5);swf_rz(5)]
-vec = (ref_p - swf_obs(1:3)) / norm(ref_p - swf_obs(1:3))
-inter = swf_obs(1:3) + swf_obs(5) * vec
 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
 
 [a,b,c,d,e,f] = RightStart_Step3V3(Input,0*rand(147,1));
@@ -133,3 +128,6 @@ grid on
 xlim([-0 0.6])
 ylim([-.3 0.3])
 zlim([0 0.6])
+
+figure
+plot(swing_foot_z)
