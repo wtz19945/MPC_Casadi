@@ -15,22 +15,19 @@ sim_step = 50;
 stance_leg = 1;
 n = 1;
 
-q_init = [0;0.0;0;-0.06]; % intial robot state
+q_init = [3;0.0;0;-0.06]; % intial robot state
 dx_des = 0.5;
 w = sqrt(9.81 / 0.9);
 x0_ref = dx_des / w * (2 - exp(w * Tstep) - exp(-w * Tstep)) / (exp(w * Tstep) - exp(-w * Tstep));
 dy_des = sqrt(w) * 0.11 * tanh(sqrt(w) * Tstep/2);
 dy_off = 0.0;
 x_ref = dx_des * ones(5,1);
-f_length = [.8;.4];     % foot length lim - swf_s(n)it
-f_param = [0;0;x0_ref;0;0;0.15]; % foot parameters
-Weights = [0;1000;0;5000;10000;10000;500;500;5000]; % MPC weights
+f_length = [.8;.15];     % foot length limit
+f_param = [0;0;x0_ref;0;0;0.1]; % foot parameters
+Weights = [0;5000;0;5000;10000;10000;500;500;5000]; % MPC weights
 r = [0.1;0.5];          % obstacle radius
-qo_ic = [-0.5;0.0];      % obstacle position
+qo_ic = [-10.5;0.0];      % obstacle position
 qo_tan = [q_init(1);q_init(3)] - qo_ic; % obstacle tangent vector
-
-qo_ic_f = [0.5;0.0];
-qo_r = [0.1;0.5];
 
 [sx,sy,sz] = sphere;
 
@@ -38,14 +35,14 @@ qo_tan = qo_tan/norm(qo_tan);
 du_ref = 0.9;
 swf_Q = 10*[100;100;10];
 swf_obs_pos = [1.35;0.1;0.0];
-swf_xy_r = [0.3;0.25];
+swf_xy_r = [0.25;0.45];
 swf_xy_z = [0.1;0.25];
-swf_Q_soft = [100000;100000];
+swf_Q_soft = [8000;8000];
 frac_z = 0.5;
-M = 100;
+M = 10000;
 
-swf_obs = [swf_obs_pos;swf_xy_r;swf_xy_z;swf_Q_soft;frac_z;M];
-swf_obs_info = [swf_obs(1:3);0.3];
+swf_obs = [swf_obs_pos;swf_xy_r;swf_xy_z;swf_Q_soft;frac_z;0.2;0.6;M];
+swf_obs_info = [swf_obs(1:3);0.25];
 x_goal = 0.0 + 0.5 * 0.4;
 y_goal = 0.11;
 z_goal = [0.0;0.1;0.2;0.1;0.0];
@@ -59,12 +56,13 @@ q_init = [0;0.0;0;-0.06]; % intial robot state
 y_ref = [0;dy_off + dy_des * (-1).^(2:5).'];
 f_init = [0;-0.11];      % foot initial state
 
+var_num = 159;
 % Obstacle
 angle = 0:0.1:2*pi;
 xoff = sin(angle);
 yoff = cos(angle);
 
-view_opt = 2;
+view_opt = 1;
 if view_opt == 1
     filename = 'Walking0.gif'; % Name of the GIF file
 elseif view_opt == 2
@@ -86,16 +84,16 @@ for i = 1:sim_step
         switch n
             case 1
                 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
-                [a,b,c,d,e,f] = RightStart_Step0V3(Input,0*rand(151,1));
+                [a,b,c,d,e,f] = RightStart_Step0V3(Input,0*rand(var_num,1));
             case 2
                 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
-                [a,b,c,d,e,f] = RightStart_Step1V3(Input,0*rand(151,1));
+                [a,b,c,d,e,f] = RightStart_Step1V3(Input,0*rand(var_num,1));
             case 3
                 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
-                [a,b,c,d,e,f] = RightStart_Step2V3(Input,0*rand(151,1));
+                [a,b,c,d,e,f] = RightStart_Step2V3(Input,0*rand(var_num,1));
             case 4
                 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
-                [a,b,c,d,e,f] = RightStart_Step3V3(Input,0*rand(151,1));
+                [a,b,c,d,e,f] = RightStart_Step3V3(Input,0*rand(var_num,1));
             otherwise
                 pause;
         end
@@ -104,16 +102,16 @@ for i = 1:sim_step
         switch n
             case 1
                 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
-                [a,b,c,d,e,f] = LeftStart_Step0V3(Input,0*rand(151,1));
+                [a,b,c,d,e,f] = LeftStart_Step0V3(Input,0*rand(var_num,1));
             case 2
                 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
-                [a,b,c,d,e,f] = LeftStart_Step1V3(Input,0*rand(151,1));
+                [a,b,c,d,e,f] = LeftStart_Step1V3(Input,0*rand(var_num,1));
             case 3
                 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
-                [a,b,c,d,e,f] = LeftStart_Step2V3(Input,0*rand(151,1));
+                [a,b,c,d,e,f] = LeftStart_Step2V3(Input,0*rand(var_num,1));
             case 4
                 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
-                [a,b,c,d,e,f] = LeftStart_Step3V3(Input,0*rand(151,1));
+                [a,b,c,d,e,f] = LeftStart_Step3V3(Input,0*rand(var_num,1));
             otherwise
                 pause;
         end
@@ -131,10 +129,11 @@ for i = 1:sim_step
     Aiq_num = size(Aiq_dense,1);
     Aeq_num = size(Aeq_dense,1);
     
-    vartype = [repmat('C',var_num - 4, 1); repmat('B', 4, 1)];
+    var_num
+    Aiq_num + Aeq_num
+    vartype = [repmat('C',var_num - 12, 1); repmat('B', 12, 1)];
     lb = -Inf * ones(var_num, 1);
     ub = Inf * ones(var_num, 1);
-    
     model.Q = sparse(.5*H_dense);
     model.obj = f_dense;
     model.A = sparse([Aiq_dense;Aeq_dense]);
@@ -149,15 +148,15 @@ for i = 1:sim_step
         model.start = initial_guess;
     end
     gurobiParams = struct();
-    gurobiParams.TimeLimit = 0.1;        % Time limit of 1 hour
+    gurobiParams.TimeLimit = 3600;        % Time limit of 1 hour
     %gurobiParams.MIPGap = 1e-4;           % 1% MIP gap
     %gurobiParams.Presolve = 2;            % Aggressive presolve
     %gurobiParams.Cuts = 2;                % Aggressive cut generation
     %gurobiParams.Threads = 16;             % Use 4 threads
     %gurobiParams.MIPFocus = 1;            % Focus on finding feasible solutions
     %gurobiParams.Heuristics = 0.05;        % Increase heuristics effort
-    gurobiParams.FeasibilityTol = 1e-5;
-    gurobiParams.OptimalityTol = 1e-5;
+    %gurobiParams.FeasibilityTol = 1e-5;
+    %gurobiParams.OptimalityTol = 1e-5;
     % Set Gurobi parameters (optional)
     gurobiParams.outputflag = 0; % Display output
     
@@ -173,7 +172,8 @@ for i = 1:sim_step
     
     dPx = design_vector(3*Nodes + 1:3*Nodes + 4);
     dPy = design_vector(6*Nodes + Npred + 1:6*Nodes + Npred + 4);
-
+    
+    
     actual_foot_x = [f_init(1);f_init(1) + cumsum(dPx)];
     actual_foot_y = [f_init(2);f_init(2) + cumsum(dPy)];
     
@@ -203,10 +203,14 @@ for i = 1:sim_step
     plot3([traj_x(1) actual_foot_x(1)],[traj_y(1) actual_foot_y(1)], [1 0])
     plot3([traj_x(1) swf_cq(1)],[traj_y(1) swf_cq(2)], [1 swf_cq(3)])
 
+        plot(actual_foot_x(3),actual_foot_y(3),'o','MarkerSize',5,    'MarkerEdgeColor','b',...
+        'MarkerFaceColor','g')
+            plot(actual_foot_x(4),actual_foot_y(4),'o','MarkerSize',5,    'MarkerEdgeColor','b',...
+        'MarkerFaceColor','g')
     hSurface = surf(swf_obs_info(4) * sx + swf_obs(1), swf_obs_info(4) * sy + swf_obs(2), swf_obs_info(4) * sz + swf_obs(3), 'FaceColor', 'red');
     set(hSurface,'FaceColor',[0 0 1], ...
       'FaceAlpha',1,'FaceLighting','gouraud')
-    bin = design_vector(end-3:end);
+    bin = design_vector(end-11:end-8);
     index = find(bin > 0.5);
     ox = swf_obs(1);
     width = 2;
@@ -226,8 +230,8 @@ for i = 1:sim_step
     title(n)
     hold off
 
-    xlim([-0 3])
-    ylim([-.3 0.3])
+    xlim([-0.1 3])
+    ylim([-.8 0.8])
     zlim([0 1.2])
     legend('Traj Ref', 'Base', 'St Foot', 'Sw Foot Des', 'Sw Foot Cur', 'St Leg', 'Sw Leg')
     xlabel('x')
@@ -236,7 +240,7 @@ for i = 1:sim_step
     frame = getframe(h);
     im = frame2im(frame);
     [imind, cm] = rgb2ind(im, 256);
-    
+
     % Write to the GIF file
     if i == 1
         imwrite(imind, cm, filename, 'gif', 'Loopcount', inf, 'DelayTime', delayTime);
@@ -265,6 +269,7 @@ for i = 1:sim_step
         stance_leg = stance_leg * -1;
         n = 1;
     end
+    
 end
 
 figure

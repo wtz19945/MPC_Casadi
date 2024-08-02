@@ -24,7 +24,7 @@ dPy = MX.sym('dPy',Npred); % y foot change
 s = MX.sym('s',Nodes);     % slack variable
 swf_q = MX.sym('swf_q', (round(Tstep / dt) + 1) * 3);  % swing foot var: x, y, z
 swf_s = MX.sym('swf_s', round(Tstep / dt) + 1);        % swinf foot slack variable
-swf_bi = MX.sym('swf_bin',4);                         % Binary variable for foothold selection
+swf_bi = MX.sym('swf_bin',12);                         % Binary variable for foothold selection
 
 Variable = [x;ux;dPx;y;uy;dPy;s;swf_q;swf_s;swf_bi];
 
@@ -45,7 +45,7 @@ height = MX.sym('height', 1);     % Walking height
 swf_cq = MX.sym('swf_cq', 3);     % Current swing foot state, x
 swf_rq = MX.sym('swf_rq', (round(Tstep / dt) + 1) * 3);      % Reference swing foot state
 swf_Q = MX.sym('swf_Q', 3);       % Swing foot position tracking
-swf_obs = MX.sym('swf_obs', 11);    % Obstacle x,y,z, radius, weights, z fraction
+swf_obs = MX.sym('swf_obs', 13);    % Obstacle x,y,z, radius, weights, z fraction
 
 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;rt;foff;height...
     ;swf_cq;swf_rq;swf_Q;swf_obs];
@@ -114,7 +114,9 @@ dy_e = y_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - y_ref(2:5
 
 % Penalize initial velocity as well
 if step_index < 3
-    dx_e = [dx_e; x_vel(2) - x_ref(2)];
+    for i = 2:5-step_index
+        dx_e = [dx_e; x_vel(i) - x_ref(2)];
+    end
     % dy_e = [dy_e; y_vel(2) - y_ref(2)];
 end
 dx_e = [dx_e; x_vel(end) - x_ref(2)];
@@ -136,6 +138,9 @@ for n = 1:Nodes
     uy_e = Uy_ref(n) - uy(n);
     cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
 end
+
+% eq_con = [eq_con;Ux_ref(:) - ux(:);Uy_ref(:) - uy(:)];
+ieq_con = [ieq_con;(-1).^(2:Npred+1)' .* dPy + 0.1];
 
 % Define Foot Change Cost
 dix = f_param(3); % foot change ref in x direction
@@ -199,7 +204,18 @@ swf_obs_r4 = swf_obs(7);
 swf_obs_Qxy = swf_obs(8);
 swf_obs_Qz = swf_obs(9);
 frac_z = swf_obs(10);
-M = swf_obs(11);
+min_z = swf_obs(11);
+max_z = swf_obs(12);
+M = swf_obs(13);
+
+sec_fx = f_init(1) + dPx(1) + dPx(2);
+sec_fy = f_init(2) + dPy(1) + dPy(2);
+sec_f = [sec_fx;sec_fy];
+
+third_fx = f_init(1) + dPx(1) + dPx(2) + dPx(3);
+third_fy = f_init(2) + dPy(1) + dPy(2) + dPy(3);
+third_f = [third_fx;third_fy];
+%third_f = sec_f;
 
 for n = step_index + 1 : round(Tstep / dt) + 1
     % swing foot traj variable
@@ -208,41 +224,59 @@ for n = step_index + 1 : round(Tstep / dt) + 1
         ; % Can not change current position for avoidance
     elseif n == round(Tstep / dt) + 1
         % 2D avoidance for touchdown position
-        eq_con = [eq_con;swf_bi(1) + swf_bi(2) + swf_bi(3) + swf_bi(4) - 1];
+        eq_con = [eq_con;sum(swf_bi(1:4)) - 1;...
+                         sum(swf_bi(5:8)) - 1;...
+                         sum(swf_bi(9:12)) - 1];
         cp = cur_p(1:2);
         op = swf_obs_pos(1:2);
         
         % Block one
         vec = [-1;1]/norm([-1;1]);
         inter = op + swf_obs_r1 * vec;
+        inter2 = op + swf_obs_r2 * vec;
         ieq_con = [ieq_con;...
             cp(1) - op(1) - M*(1-swf_bi(1)) - swf_s(n);...
             -cp(2) + op(2) - M*(1-swf_bi(1)) - swf_s(n);...
-            -dot(vec, cp - inter) - M*(1-swf_bi(1)) - swf_s(n)];
+            -dot(vec, cp - inter2) - M*(1-swf_bi(1)) - swf_s(n);...
+            -dot(vec, cp - inter) - M*(1-swf_bi(1));...
+            -dot(vec, sec_f - inter) - M*(1-swf_bi(5));...
+            -dot(vec, third_f - inter) - M*(1-swf_bi(9))];
 
         % Block two
         vec = [-1;-1]/norm([-1;-1]);
         inter = op + swf_obs_r1 * vec;
+        inter2 = op + swf_obs_r2 * vec;
         ieq_con = [ieq_con;...
             cp(1) - op(1) - M*(1-swf_bi(2)) - swf_s(n);...
             cp(2) - op(2) - M*(1-swf_bi(2)) - swf_s(n);...
-            -dot(vec, cp - inter) - M*(1-swf_bi(2)) - swf_s(n)];
+            -dot(vec, cp - inter2) - M*(1-swf_bi(2)) - swf_s(n);...
+            -dot(vec, cp - inter) - M*(1-swf_bi(2));...
+            -dot(vec, sec_f - inter) - M*(1-swf_bi(6));...
+            -dot(vec, third_f - inter) - M*(1-swf_bi(10))];
 
         % Block three
         vec = [1;1]/norm([1;1]);
         inter = op + swf_obs_r1 * vec;
+        inter2 = op + swf_obs_r2 * vec;
         ieq_con = [ieq_con;...
             -cp(1) + op(1) - M*(1-swf_bi(3)) - swf_s(n);...
             -cp(2) + op(2) - M*(1-swf_bi(3)) - swf_s(n);...
-            -dot(vec, cp - inter) - M*(1-swf_bi(3)) - swf_s(n)];
+            -dot(vec, cp - inter2) - M*(1-swf_bi(3)) - swf_s(n);...
+            -dot(vec, cp - inter) - M*(1-swf_bi(3));...
+            -dot(vec, sec_f - inter) - M*(1-swf_bi(7));...
+            -dot(vec, third_f - inter) - M*(1-swf_bi(11))];
 
         % Block four
         vec = [1;-1]/norm([1;-1]);
         inter = op + swf_obs_r1 * vec;
+        inter2 = op + swf_obs_r2 * vec;
         ieq_con = [ieq_con;...
             -cp(1) + op(1) - M*(1-swf_bi(4)) - swf_s(n);...
             cp(2) - op(2) - M*(1-swf_bi(4)) - swf_s(n);...
-            -dot(vec, cp - inter) - M*(1-swf_bi(4)) - swf_s(n)];
+            -dot(vec, cp - inter2) - M*(1-swf_bi(4)) - swf_s(n);...
+            -dot(vec, cp - inter) - M*(1-swf_bi(4));...
+            -dot(vec, sec_f - inter) - M*(1-swf_bi(8));...
+            -dot(vec, third_f - inter) - M*(1-swf_bi(12))];
 
         cost = cost + swf_obs_Qxy * swf_s(n) * swf_s(n);
     else
@@ -260,10 +294,14 @@ for n = step_index + 1 : round(Tstep / dt) + 1
 end
 ieq_con = [ieq_con;-swf_s];
 
+
 % symmetrical vertical trajectory
 eq_con = [eq_con;swf_z(2) - swf_z(4)];
-eq_con = [eq_con;swf_z(2) - frac_z * swf_z(3)];
-ieq_con = [ieq_con;swf_z(3) - 0.4];
+ieq_con = [ieq_con;swf_z(2) - frac_z * swf_z(3)];
+ieq_con = [ieq_con;swf_z(3) - max_z];
+if step_index < 2
+    ieq_con = [ieq_con;-swf_z(3) + min_z];
+end
 
 % Get the jacobian and Hessian Information
 Aeq = jacobian(eq_con,Variable);

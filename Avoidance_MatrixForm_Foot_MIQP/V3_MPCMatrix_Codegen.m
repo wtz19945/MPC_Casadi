@@ -29,3 +29,10 @@ movefile('RightStart_Step0V3.c','Generated_Function/RightStart_Step0V3.c')
 movefile('RightStart_Step1V3.c','Generated_Function/RightStart_Step1V3.c')
 movefile('RightStart_Step2V3.c','Generated_Function/RightStart_Step2V3.c')
 movefile('RightStart_Step3V3.c','Generated_Function/RightStart_Step3V3.c')
+
+
+%%
+disp('Generating mpc casadi lib')
+cd Generated_Function/
+system('./create_lib.sh');
+cd ..

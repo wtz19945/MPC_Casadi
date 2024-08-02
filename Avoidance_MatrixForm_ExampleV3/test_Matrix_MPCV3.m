@@ -10,7 +10,7 @@ g = 9.81; % gravity term;
 Nodes = Npred * round(Tstep / dt) + 1;
 
 q_init = [0;0.0;0;-0.06]; % intial robot state
-dx_des = 0.0;
+dx_des = 0.5;
 w = sqrt(9.81 / 0.9);
 x0_ref = dx_des / w * (2 - exp(w * Tstep) - exp(-w * Tstep)) / (exp(w * Tstep) - exp(-w * Tstep));
 dy_des = sqrt(w) * 0.11 * tanh(sqrt(w) * Tstep/2);
@@ -23,15 +23,15 @@ f_init = [0;-0.11];      % foot initial state
 f_param = [0;0;x0_ref;0;0;0.11]; % foot parameters
 Weights = [0;5000;0;5000;10000;10000;500;500;5000]; % MPC weights
 r = [0.1;0.5];          % obstacle radius
-qo_ic = [-0.2;0.0];      % obstacle position
+qo_ic = [-0.5;0.0];      % obstacle position
 qo_tan = [q_init(1);q_init(3)] - qo_ic; % obstacle tangent vector
 qo_tan = qo_tan/norm(qo_tan);
-du_ref = [0;0;0;.5];
+du_ref = [0;0;0;.8];
 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref];
 
-[a,b,c,d,e,f] = RightStart_Step0V3(Input,0*rand(127,1));
+[a,b,c,d,e,f] = RightStart_Step1V3(Input,0*rand(127,1));
 
-[a1,b1,c1,d1,e1,f1] = RightStart_Step0V3(Input,2.5*rand(127,1));
+[a1,b1,c1,d1,e1,f1] = RightStart_Step1V3(Input,2.5*rand(127,1));
 
 ea = norm(full(a1) - full(a))
 eb = norm(full(b1) - full(b))

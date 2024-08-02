@@ -35,7 +35,7 @@ z_goal = [0.0;0.1;0.2;0.1;0.0];
 swf_cq = [0;0.11;0.0];
 swf_rq = [linspace(0, x_goal, 5)'; linspace(0.11, y_goal, 5)'; z_goal];
 swf_Q = 100*[100;100;10];
-swf_obs = [-1.35;0.1;0.0;0.1;0.15;0.2;0.25;100000;100000;0.5];
+swf_obs = [-1.35;0.1;0.0;0.1;0.15;0.0;0.25;100000;100000;0.5;0.1;0.5;100];
 
 dN = round(Tstep / dt) + 1;
 % Reference Foot Trajectory
@@ -49,8 +49,7 @@ ref_p = [swf_rx(5);swf_ry(5);swf_rz(5)]
 vec = (ref_p - swf_obs(1:3)) / norm(ref_p - swf_obs(1:3))
 inter = swf_obs(1:3) + swf_obs(5) * vec
 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
-
-[a,b,c,d,e,f] = RightStart_Step0V3(Input,0*rand(151,1));
+[a,b,c,d,e,f] = RightStart_Step3V3(Input,0*rand(155,1));
 
 Aeq_dense = full(a);
 beq_dense = -full(b);

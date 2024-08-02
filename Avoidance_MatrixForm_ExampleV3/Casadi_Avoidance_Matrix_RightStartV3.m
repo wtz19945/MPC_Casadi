@@ -130,6 +130,9 @@ for n = 1:Nodes
     cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
 end
 
+eq_con = [eq_con;Ux_ref(:) - ux(:);Uy_ref(:) - uy(:)];
+ieq_con = [ieq_con;(-1).^(1:Npred)' .* dPy + 0.1];
+
 % Define Foot Change Cost
 dix = f_param(3); % foot change ref in x direction
 diy = f_param(6); % foot chagne ref in y

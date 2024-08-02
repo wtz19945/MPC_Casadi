@@ -45,9 +45,9 @@ swf_rz = swf_rq(2*dN+1:end);
 
 Input = [q_init;x_ref;y_ref;f_length;f_init;f_param;Weights;r;qo_ic;qo_tan;0.1;0;0;du_ref;swf_cq;swf_rq;swf_Q;swf_obs];
 
-[a,b,c,d,e,f] = RightStart_Step3V3(Input,0*rand(147,1));
+[a,b,c,d,e,f] = RightStart_Step0V3(Input,0*rand(147,1));
 
-[a1,b1,c1,d1,e1,f1] = RightStart_Step3V3(Input,2.5*rand(147,1));
+[a1,b1,c1,d1,e1,f1] = RightStart_Step0V3(Input,2.5*rand(147,1));
 
 ea = norm(full(a1) - full(a))
 eb = norm(full(b1) - full(b))
