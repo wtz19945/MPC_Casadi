@@ -11,12 +11,12 @@ g = 9.81; % gravity term;
 Nodes = Npred * round(Tstep / dt) + 1;
 
 
-sim_step = 50;
+sim_step = 100;
 stance_leg = 1;
 n = 1;
 
 q_init = [3;0.0;0;-0.06]; % intial robot state
-dx_des = 0.5;
+dx_des = 0.3;
 w = sqrt(9.81 / 0.9);
 x0_ref = dx_des / w * (2 - exp(w * Tstep) - exp(-w * Tstep)) / (exp(w * Tstep) - exp(-w * Tstep));
 dy_des = sqrt(w) * 0.11 * tanh(sqrt(w) * Tstep/2);
@@ -24,7 +24,7 @@ dy_off = 0.0;
 x_ref = dx_des * ones(5,1);
 f_length = [.8;.15];     % foot length limit
 f_param = [0;0;x0_ref;0;0;0.1]; % foot parameters
-Weights = [0;5000;0;5000;10000;10000;500;500;5000]; % MPC weights
+Weights = [0;1000;0;5000;10000;10000;500;50000;5000]; % MPC weights
 r = [0.1;0.5];          % obstacle radius
 qo_ic = [-10.5;0.0];      % obstacle position
 qo_tan = [q_init(1);q_init(3)] - qo_ic; % obstacle tangent vector
@@ -33,16 +33,16 @@ qo_tan = [q_init(1);q_init(3)] - qo_ic; % obstacle tangent vector
 
 qo_tan = qo_tan/norm(qo_tan);
 du_ref = 0.9;
-swf_Q = 10*[100;100;10];
+swf_Q = 10*[10;10;100];
 swf_obs_pos = [1.35;0.1;0.0];
-swf_xy_r = [0.25;0.45];
-swf_xy_z = [0.1;0.25];
+swf_xy_r = [0.2;0.3];
+swf_xy_z = [0.0;0.3];
 swf_Q_soft = [8000;8000];
 frac_z = 0.5;
 M = 10000;
 
-swf_obs = [swf_obs_pos;swf_xy_r;swf_xy_z;swf_Q_soft;frac_z;0.2;0.6;M];
-swf_obs_info = [swf_obs(1:3);0.25];
+swf_obs = [swf_obs_pos;swf_xy_r;swf_xy_z;swf_Q_soft;frac_z;0.2;0.6;M;25 * pi/180];
+swf_obs_info = [swf_obs(1:3);0.2];
 x_goal = 0.0 + 0.5 * 0.4;
 y_goal = 0.11;
 z_goal = [0.0;0.1;0.2;0.1;0.0];
@@ -56,7 +56,7 @@ q_init = [0;0.0;0;-0.06]; % intial robot state
 y_ref = [0;dy_off + dy_des * (-1).^(2:5).'];
 f_init = [0;-0.11];      % foot initial state
 
-var_num = 168;
+var_num = 173;
 % Obstacle
 angle = 0:0.1:2*pi;
 xoff = sin(angle);
@@ -131,7 +131,7 @@ for i = 1:sim_step
     
     var_num
     Aiq_num + Aeq_num
-    vartype = [repmat('C',var_num - 12, 1); repmat('B', 12, 1)];
+    vartype = [repmat('C',var_num - 16, 1); repmat('B', 16, 1)];
     lb = -Inf * ones(var_num, 1);
     ub = Inf * ones(var_num, 1);
     model.Q = sparse(.5*H_dense);
@@ -210,7 +210,8 @@ for i = 1:sim_step
     hSurface = surf(swf_obs_info(4) * sx + swf_obs(1), swf_obs_info(4) * sy + swf_obs(2), swf_obs_info(4) * sz + swf_obs(3), 'FaceColor', 'red');
     set(hSurface,'FaceColor',[0 0 1], ...
       'FaceAlpha',1,'FaceLighting','gouraud')
-    bin = design_vector(end-11:end-8);
+    design_vector(end - 16)
+    bin = design_vector(end-15:end-12);
     index = find(bin > 0.5);
     ox = swf_obs(1);
     width = 2;
