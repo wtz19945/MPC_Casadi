@@ -24,7 +24,7 @@ dPy = MX.sym('dPy',Npred); % y foot change
 s = MX.sym('s',Nodes);     % slack variable
 swf_q = MX.sym('swf_q', (round(Tstep / dt) + 1) * 3);  % swing foot var: x, y, z
 swf_s = MX.sym('swf_s', round(Tstep / dt) + Npred);        % swinf foot slack variable
-avd_s = MX.sym('avd_s', Npred + 3);
+avd_s = MX.sym('avd_s', Npred + 4);
 swf_bi = MX.sym('swf_bin',Npred * 4);                         % Binary variable for foothold selection
 
 Variable = [x;ux;dPx;y;uy;dPy;s;swf_q;swf_s;avd_s;swf_bi];
@@ -110,7 +110,7 @@ cost = cost + x_c + y_c;
 % Define velocity tracking for stepping phase
 x_vel = x(2:2:end);
 y_vel = y(2:2:end);
-dx_e = x_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - x_ref(2:Npred + 1);
+dx_e = x_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - x_ref(2:Npred + 1) - avd_s(end) * 0.9;
 dy_e = y_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - y_ref(2:Npred + 1);
 
 % Penalize initial velocity as well
@@ -143,7 +143,7 @@ for n = 1:Nodes
     cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
 end
 
-% eq_con = [eq_con;Ux_ref(:) - ux(:);Uy_ref(:) - uy(:)];
+%eq_con = [eq_con;Ux_ref(:) - ux(:);Uy_ref(:) - uy(:)];
 ieq_con = [ieq_con;(-1).^(2:Npred+1)' .* dPy + 0.1];
 
 % Define Foot Change Cost
@@ -213,25 +213,14 @@ max_z = swf_obs(12);
 M = swf_obs(13);
 th = swf_obs(14);
 
-sec_fx = f_init(1) + dPx(1) + dPx(2);
-sec_fy = f_init(2) + dPy(1) + dPy(2);
-sec_f = [sec_fx;sec_fy];
-
-third_fx = f_init(1) + dPx(1) + dPx(2) + dPx(3);
-third_fy = f_init(2) + dPy(1) + dPy(2) + dPy(3);
-third_f = [third_fx;third_fy];
-
-forth_fx = f_init(1) + dPx(1) + dPx(2) + dPx(3);
-forth_fy = f_init(2) + dPy(1) + dPy(2) + dPy(3);
-forth_f = [forth_fx;forth_fy];
-
-fifth_fx = f_init(1) + dPx(1) + dPx(2) + dPx(3) + dPx(4);
-fifth_fy = f_init(2) + dPy(1) + dPy(2) + dPy(3) + dPy(4);
-fifth_f = [fifth_fx;fifth_fy];
-
-sixth_fx = f_init(1) + dPx(1) + dPx(2) + dPx(3) + dPx(4) + dPx(5);
-sixth_fy = f_init(2) + dPy(1) + dPy(2) + dPy(3) + dPy(4) + dPy(5);
-sixth_f = [sixth_fx;sixth_fy];
+foot_vec = [];
+foot_x = f_init(1) + dPx(1);
+foot_y = f_init(2) + dPy(1);
+for n = 2 : Npred
+    foot_x = foot_x + dPx(n);
+    foot_y = foot_y + dPy(n);
+    foot_vec = [foot_vec;foot_x;foot_y];
+end
 %third_f = sec_f;
 
 rotA = [cos(th) -sin(th);sin(th) cos(th)];
@@ -244,16 +233,15 @@ for n = step_index + 1 : round(Tstep / dt) + 1
         ; % Can not change current position for avoidance
     elseif n == round(Tstep / dt) + 1
         % 2D avoidance for touchdown position
-        eq_con = [eq_con;sum(swf_bi(1:4)) - 1;...
-                         sum(swf_bi(5:8)) - 1;...
-                         sum(swf_bi(9:12)) - 1;...
-                         sum(swf_bi(13:16)) - 1;...
-                         sum(swf_bi(17:20)) - 1;...
-                         sum(swf_bi(21:24)) - 1];
+        for i = 1:Npred
+            eq_con = [eq_con;sum(swf_bi(i * 4 - 3: i * 4)) - 1];
+        end
 
         cp = cur_p(1:2);
         op = swf_obs_pos(1:2);
         
+        cp = [cp;foot_vec];
+
         % Block one
         vec = rotB * [-1;1]/norm([-1;1]);
         inter = op + swf_obs_r1 * vec;
@@ -261,13 +249,11 @@ for n = step_index + 1 : round(Tstep / dt) + 1
         ieq_con = [ieq_con;...
             cp(1) - op(1) - M*(1-swf_bi(1)) - swf_s(n) + swf_obs_r1;...
             -cp(2) + op(2) - M*(1-swf_bi(1)) - swf_s(n) + swf_obs_r1;...
-            -dot(vec, cp - inter2) - M*(1-swf_bi(1)) - swf_s(n);...
-            -dot(vec, cp - inter) - M*(1-swf_bi(1));...
-            -dot(vec, sec_f - inter2) - M*(1-swf_bi(5)) - swf_s(n+1);...
-            -dot(vec, third_f - inter2) - M*(1-swf_bi(9)) - swf_s(n+2);...
-            -dot(vec, forth_f - inter2) - M*(1-swf_bi(13)) - swf_s(n+3);...
-            -dot(vec, fifth_f - inter2) - M*(1-swf_bi(17)) - swf_s(n+4);...
-            -dot(vec, sixth_f - inter2) - M*(1-swf_bi(21)) - swf_s(n+5)];
+            -dot(vec, cp(1:2) - inter) - M*(1-swf_bi(1))];
+
+        for i = 0 : Npred - 1
+            ieq_con = [ieq_con;-dot(vec, cp(2*i + 1: 2*i + 2) - inter2) - M*(1-swf_bi(1 + 4 * i)) - swf_s(n + i)];
+        end
 
         % Block two
         vec = rotA * [-1;-1]/norm([-1;-1]);
@@ -276,13 +262,11 @@ for n = step_index + 1 : round(Tstep / dt) + 1
         ieq_con = [ieq_con;...
             cp(1) - op(1) - M*(1-swf_bi(2)) - swf_s(n) + swf_obs_r1;...
             cp(2) - op(2) - M*(1-swf_bi(2)) - swf_s(n) + swf_obs_r1;...
-            -dot(vec, cp - inter2) - M*(1-swf_bi(2)) - swf_s(n);...
-            -dot(vec, cp - inter) - M*(1-swf_bi(2));...
-            -dot(vec, sec_f - inter2) - M*(1-swf_bi(6)) - swf_s(n+1);...
-            -dot(vec, third_f - inter2) - M*(1-swf_bi(10)) - swf_s(n+2);...
-            -dot(vec, forth_f - inter2) - M*(1-swf_bi(14)) - swf_s(n+3);...
-            -dot(vec, fifth_f - inter2) - M*(1-swf_bi(18)) - swf_s(n+4);...
-            -dot(vec, sixth_f - inter2) - M*(1-swf_bi(22)) - swf_s(n+5)];
+            -dot(vec, cp(1:2) - inter) - M*(1-swf_bi(2))];
+
+        for i = 0 : Npred - 1
+            ieq_con = [ieq_con;-dot(vec, cp(2*i + 1: 2*i + 2) - inter2) - M*(1-swf_bi(2 + 4 * i)) - swf_s(n + i)];
+        end
 
         % Block three
         vec = rotA * [1;1]/norm([1;1]);
@@ -291,13 +275,11 @@ for n = step_index + 1 : round(Tstep / dt) + 1
         ieq_con = [ieq_con;...
             -cp(1) + op(1) - M*(1-swf_bi(3)) - swf_s(n) + swf_obs_r1;...
             -cp(2) + op(2) - M*(1-swf_bi(3)) - swf_s(n) + swf_obs_r1;...
-            -dot(vec, cp - inter2) - M*(1-swf_bi(3)) - swf_s(n);...
-            -dot(vec, cp - inter) - M*(1-swf_bi(3));...
-            -dot(vec, sec_f - inter2) - M*(1-swf_bi(7)) - swf_s(n+1);...
-            -dot(vec, third_f - inter2) - M*(1-swf_bi(11)) - swf_s(n+2);...
-            -dot(vec, forth_f - inter2) - M*(1-swf_bi(15)) - swf_s(n+3);...
-            -dot(vec, fifth_f - inter2) - M*(1-swf_bi(19)) - swf_s(n+4);...
-            -dot(vec, sixth_f - inter2) - M*(1-swf_bi(23)) - swf_s(n+5)];
+            -dot(vec, cp(1:2) - inter) - M*(1-swf_bi(3))];
+
+        for i = 0 : Npred - 1
+            ieq_con = [ieq_con;-dot(vec, cp(2*i + 1: 2*i + 2) - inter2) - M*(1-swf_bi(3 + 4 * i)) - swf_s(n + i)];
+        end
 
         % Block four
         vec = rotB * [1;-1]/norm([1;-1]);
@@ -306,14 +288,13 @@ for n = step_index + 1 : round(Tstep / dt) + 1
         ieq_con = [ieq_con;...
             -cp(1) + op(1) - M*(1-swf_bi(4)) - swf_s(n) + swf_obs_r1;...
             cp(2) - op(2) - M*(1-swf_bi(4)) - swf_s(n) + swf_obs_r1;...
-            -dot(vec, cp - inter2) - M*(1-swf_bi(4)) - swf_s(n);...
-            -dot(vec, cp - inter) - M*(1-swf_bi(4));...
-            -dot(vec, sec_f - inter2) - M*(1-swf_bi(8)) - swf_s(n+1);...
-            -dot(vec, third_f - inter2) - M*(1-swf_bi(12)) - swf_s(n+2);...
-            -dot(vec, forth_f - inter2) - M*(1-swf_bi(16)) - swf_s(n+3);...
-            -dot(vec, fifth_f - inter2) - M*(1-swf_bi(20)) - swf_s(n+4);...
-            -dot(vec, sixth_f - inter2) - M*(1-swf_bi(24)) - swf_s(n+5)];
-        for i = 0:5
+            -dot(vec, cp(1:2) - inter) - M*(1-swf_bi(4))];
+
+        for i = 0 : Npred - 1
+            ieq_con = [ieq_con;-dot(vec, cp(2*i + 1: 2*i + 2) - inter2) - M*(1-swf_bi(4 + 4 * i)) - swf_s(n + i)];
+        end
+
+        for i = 0 : Npred - 1
             cost = cost + swf_obs_Qxy * swf_s(n + i) * swf_s(n + i);
         end
     else

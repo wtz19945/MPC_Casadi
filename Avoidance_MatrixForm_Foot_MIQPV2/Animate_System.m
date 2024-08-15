@@ -56,7 +56,7 @@ q_init = [0;0.0;0;-0.06]; % intial robot state
 y_ref = [0;dy_off + dy_des * (-1).^(2:5).'];
 f_init = [0;-0.11];      % foot initial state
 
-var_num = 173;
+var_num = 174;
 % Obstacle
 angle = 0:0.1:2*pi;
 xoff = sin(angle);
@@ -131,7 +131,7 @@ for i = 1:sim_step
     
     var_num
     Aiq_num + Aeq_num
-    vartype = [repmat('C',var_num - 16, 1); repmat('B', 16, 1)];
+    vartype = [repmat('C',var_num - 17, 1); repmat('B', 17, 1)];
     lb = -Inf * ones(var_num, 1);
     ub = Inf * ones(var_num, 1);
     model.Q = sparse(.5*H_dense);

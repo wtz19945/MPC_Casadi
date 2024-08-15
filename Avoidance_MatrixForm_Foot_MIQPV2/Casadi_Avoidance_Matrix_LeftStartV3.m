@@ -23,12 +23,11 @@ uy = MX.sym('uy',Nodes);   % y center of pressure traj
 dPy = MX.sym('dPy',Npred); % y foot change
 s = MX.sym('s',Nodes);     % slack variable
 swf_q = MX.sym('swf_q', (round(Tstep / dt) + 1) * 3);  % swing foot var: x, y, z
-swf_s = MX.sym('swf_s', round(Tstep / dt) + 3);        % swinf foot slack variable
-avd_s = MX.sym('avd_s', 7);
+swf_s = MX.sym('swf_s', round(Tstep / dt) + 4);        % swinf foot slack variable
+avd_s = MX.sym('avd_s', 8);
 swf_bi = MX.sym('swf_bin',16);                         % Binary variable for foothold selection
 
 Variable = [x;ux;dPx;y;uy;dPy;s;swf_q;swf_s;avd_s;swf_bi];
-
 % Define MPC Parameters
 q_init = MX.sym('q_init',nx * 2); % com current position
 qo_ic = MX.sym('qo_ic',2);        % obstacle position that is cloeset to robot
@@ -110,7 +109,7 @@ cost = cost + x_c + y_c;
 % Define velocity tracking for stepping phase
 x_vel = x(2:2:end);
 y_vel = y(2:2:end);
-dx_e = x_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - x_ref(2:5);
+dx_e = x_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - x_ref(2:5) - avd_s(end) * 0.9;
 dy_e = y_vel(round(Tstep / dt)+1 - step_index:round(Tstep / dt):end) - y_ref(2:5);
 
 % Penalize initial velocity as well
@@ -221,8 +220,8 @@ third_fx = f_init(1) + dPx(1) + dPx(2) + dPx(3);
 third_fy = f_init(2) + dPy(1) + dPy(2) + dPy(3);
 third_f = [third_fx;third_fy];
 
-forth_fx = f_init(1) + dPx(1) + dPx(2) + dPx(3);
-forth_fy = f_init(2) + dPy(1) + dPy(2) + dPy(3);
+forth_fx = f_init(1) + dPx(1) + dPx(2) + dPx(3) + dPx(4);
+forth_fy = f_init(2) + dPy(1) + dPy(2) + dPy(3) + dPy(4);
 forth_f = [forth_fx;forth_fy];
 %third_f = sec_f;
 
@@ -254,7 +253,7 @@ for n = step_index + 1 : round(Tstep / dt) + 1
             -dot(vec, cp - inter) - M*(1-swf_bi(1));...
             -dot(vec, sec_f - inter2) - M*(1-swf_bi(5)) - swf_s(n+1);...
             -dot(vec, third_f - inter2) - M*(1-swf_bi(9)) - swf_s(n+2);...
-            -dot(vec, forth_f - inter2) - M*(1-swf_bi(13)) - swf_s(n+2)];
+            -dot(vec, forth_f - inter2) - M*(1-swf_bi(13)) - swf_s(n+3)];
 
         % Block two
         vec = rotA * [-1;-1]/norm([-1;-1]);
@@ -267,7 +266,7 @@ for n = step_index + 1 : round(Tstep / dt) + 1
             -dot(vec, cp - inter) - M*(1-swf_bi(2));...
             -dot(vec, sec_f - inter2) - M*(1-swf_bi(6)) - swf_s(n+1);...
             -dot(vec, third_f - inter2) - M*(1-swf_bi(10)) - swf_s(n+2);...
-            -dot(vec, forth_f - inter2) - M*(1-swf_bi(14)) - swf_s(n+2)];
+            -dot(vec, forth_f - inter2) - M*(1-swf_bi(14)) - swf_s(n+3)];
 
         % Block three
         vec = rotA * [1;1]/norm([1;1]);
@@ -280,7 +279,7 @@ for n = step_index + 1 : round(Tstep / dt) + 1
             -dot(vec, cp - inter) - M*(1-swf_bi(3));...
             -dot(vec, sec_f - inter2) - M*(1-swf_bi(7)) - swf_s(n+1);...
             -dot(vec, third_f - inter2) - M*(1-swf_bi(11)) - swf_s(n+2);...
-            -dot(vec, forth_f - inter2) - M*(1-swf_bi(15)) - swf_s(n+2)];
+            -dot(vec, forth_f - inter2) - M*(1-swf_bi(15)) - swf_s(n+3)];
 
         % Block four
         vec = rotB * [1;-1]/norm([1;-1]);
@@ -293,7 +292,7 @@ for n = step_index + 1 : round(Tstep / dt) + 1
             -dot(vec, cp - inter) - M*(1-swf_bi(4));...
             -dot(vec, sec_f - inter2) - M*(1-swf_bi(8)) - swf_s(n+1);...
             -dot(vec, third_f - inter2) - M*(1-swf_bi(12)) - swf_s(n+2);...
-            -dot(vec, forth_f - inter2) - M*(1-swf_bi(16)) - swf_s(n+2)];
+            -dot(vec, forth_f - inter2) - M*(1-swf_bi(16)) - swf_s(n+3)];
 
         cost = cost + swf_obs_Qxy * swf_s(n) * swf_s(n)...
             + swf_obs_Qxy * swf_s(n+1) * swf_s(n+1) + swf_obs_Qxy * swf_s(n+2) * swf_s(n+2);

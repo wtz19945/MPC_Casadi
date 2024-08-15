@@ -24,7 +24,7 @@ dy_off = 0.0;
 x_ref = dx_des * ones(Npred + 1,1);
 f_length = [.8;.15];     % foot length limit
 f_param = [0;0;x0_ref;0;0;0.1]; % foot parameters
-Weights = [0;1000;0;5000;10000;10000;500;50000;5000]; % MPC weights
+Weights = [0;1000;0;5000;10000;10000;500;500;5000]; % MPC weights
 r = [0.1;0.5];          % obstacle radius
 qo_ic = [-10.5;0.0];      % obstacle position
 qo_tan = [q_init(1);q_init(3)] - qo_ic; % obstacle tangent vector
@@ -56,7 +56,7 @@ q_init = [0;0.0;0;-0.06]; % intial robot state
 y_ref = [0;dy_off + dy_des * (-1).^(2:Npred + 1).'];
 f_init = [0;-0.11];      % foot initial state
 
-var_num = 245;
+var_num = 246;
 % Obstacle
 angle = 0:0.1:2*pi;
 xoff = sin(angle);
@@ -131,7 +131,7 @@ for i = 1:sim_step
     
     var_num
     Aiq_num + Aeq_num
-    vartype = [repmat('C',var_num - Npred * 4, 1); repmat('B', Npred * 4, 1)];
+    vartype = [repmat('C',var_num - Npred * 4 - 1, 1); repmat('B', Npred * 4 + 1, 1)];
     lb = -Inf * ones(var_num, 1);
     ub = Inf * ones(var_num, 1);
     model.Q = sparse(.5*H_dense);
@@ -202,15 +202,11 @@ for i = 1:sim_step
         'MarkerFaceColor','b')
     plot3([traj_x(1) actual_foot_x(1)],[traj_y(1) actual_foot_y(1)], [1 0])
     plot3([traj_x(1) swf_cq(1)],[traj_y(1) swf_cq(2)], [1 swf_cq(3)])
-
-    plot(actual_foot_x(3),actual_foot_y(3),'o','MarkerSize',5,    'MarkerEdgeColor','b',...
-    'MarkerFaceColor','g')
-    plot(actual_foot_x(4),actual_foot_y(4),'o','MarkerSize',5,    'MarkerEdgeColor','b',...
-    'MarkerFaceColor','g')
-    plot(actual_foot_x(5),actual_foot_y(5),'o','MarkerSize',5,    'MarkerEdgeColor','b',...
-    'MarkerFaceColor','g')
-    plot(actual_foot_x(6),actual_foot_y(6),'o','MarkerSize',5,    'MarkerEdgeColor','b',...
-    'MarkerFaceColor','g')
+    
+    for j = 3 : Npred 
+        plot(actual_foot_x(j),actual_foot_y(j),'o','MarkerSize',5,    'MarkerEdgeColor','b',...
+        'MarkerFaceColor','g')
+    end
     hSurface = surf(swf_obs_info(4) * sx + swf_obs(1), swf_obs_info(4) * sy + swf_obs(2), swf_obs_info(4) * sz + swf_obs(3), 'FaceColor', 'red');
     set(hSurface,'FaceColor',[0 0 1], ...
       'FaceAlpha',1,'FaceLighting','gouraud')

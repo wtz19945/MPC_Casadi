@@ -124,11 +124,11 @@ temp = [temp(1 + step_index:end,:);ones(step_index,Npred)];
 Ux_ref = ones(Nodes,1) * f_init(1) + temp * dPx;
 Uy_ref = ones(Nodes,1) * f_init(2) + temp * dPy;
 
-% for n = 1:Nodes
-%     ux_e = Ux_ref(n) - ux(n);
-%     uy_e = Uy_ref(n) - uy(n);
-%     cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
-% end
+for n = 1:Nodes
+    %ux_e = Ux_ref(n) - ux(n);
+    %uy_e = Uy_ref(n) - uy(n);
+    %cost = cost + ux_e * Weights(5) * ux_e + uy_e * Weights(6) * uy_e;
+end
 
 eq_con = [eq_con;Ux_ref(:) - ux(:);Uy_ref(:) - uy(:)];
 ieq_con = [ieq_con;(-1).^(2:Npred+1)' .* dPy + 0.1];
